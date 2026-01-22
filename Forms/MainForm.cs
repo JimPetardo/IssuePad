@@ -32,15 +32,39 @@ public sealed class MainForm : Form
     private readonly TextBox _desc = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
     private readonly TextBox _notes = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
 
-    private readonly Button _new = new() { Text = "Nuovo (pulisci campi)", Dock = DockStyle.Top, Height = 36 };
-    private readonly Button _add = new() { Text = "Aggiungi", Dock = DockStyle.Top, Height = 36 };
-    private readonly Button _toggleDone = new() { Text = "Toggle completato (riga selezionata)", Dock = DockStyle.Top, Height = 36 };
-    private readonly Button _update = new() { Text = "Aggiorna", Dock = DockStyle.Top, Height = 36 };
-    private readonly Button _delete = new() { Text = "Rimuovi selezionato", Dock = DockStyle.Top, Height = 36, ForeColor = Color.DarkRed };
+    private readonly Button _new = new() { Text = "📄 Nuovo", Dock = DockStyle.Top, Height = 36 };
+    private readonly Button _add = new() { Text = "➕ Aggiungi", Dock = DockStyle.Fill, Height = 36, BackColor = Color.FromArgb(220, 255, 220) };
+    private readonly Button _update = new() { Text = "💾 Salva", Dock = DockStyle.Fill, Height = 36, BackColor = Color.FromArgb(220, 235, 255) };
+    private readonly Button _toggleDone = new() { Text = "✅ Cambia stato", Dock = DockStyle.Top, Height = 36 };
+    private readonly Button _delete = new() { Text = "🗑️ Elimina", Dock = DockStyle.Top, Height = 36, ForeColor = Color.DarkRed, BackColor = Color.FromArgb(255, 230, 230) };
 
     private readonly LinkLabel _pathLabel = new() { Dock = DockStyle.Top, Height = 20, AutoEllipsis = true };
 
+    private readonly ComboBox _titleFilter = new()
+    {
+        Dock = DockStyle.Fill,
+        DropDownStyle = ComboBoxStyle.DropDownList
+    };
+    private readonly CheckBox _showOnlyOpen = new()
+    {
+        Text = "Solo aperte",
+        Dock = DockStyle.Right,
+        Width = 100,
+        Appearance = Appearance.Button,
+        TextAlign = ContentAlignment.MiddleCenter,
+        FlatStyle = FlatStyle.Flat
+    };
+    private string? _currentFilter = null;
+    private bool _onlyOpen = false;
+
+    private readonly StatusStrip _statusStrip = new();
+    private readonly ToolStripStatusLabel _statusTotal = new() { Spring = false, BorderSides = ToolStripStatusLabelBorderSides.Right };
+    private readonly ToolStripStatusLabel _statusOpen = new() { Spring = false, BorderSides = ToolStripStatusLabelBorderSides.Right, ForeColor = Color.DarkGreen };
+    private readonly ToolStripStatusLabel _statusClosed = new() { Spring = false, ForeColor = Color.Gray };
+    private readonly ToolStripStatusLabel _statusSpacer = new() { Spring = true };
+
     private Font? _fontRegular;
+    private Font? _fontBold;
     private Font? _fontStrike;
 
     public MainForm(IssueRepository repository)
@@ -61,14 +85,17 @@ public sealed class MainForm : Form
         };
 
         _fontRegular = new Font(Font, FontStyle.Regular);
+        _fontBold = new Font(Font, FontStyle.Bold);
         _fontStrike = new Font(Font, FontStyle.Strikeout);
 
         _split.FixedPanel = FixedPanel.Panel2;
 
         SetupGridColumns();
+        SetupLeftPanel();
         SetupRightPanel();
+        SetupStatusStrip();
 
-        _split.Panel1.Controls.Add(_grid);
+        Controls.Add(_statusStrip);
         Controls.Add(_split);
 
         Shown += (_, _) =>
@@ -116,13 +143,26 @@ public sealed class MainForm : Form
 
         _grid.CellFormatting += (_, e) =>
         {
-            if (_fontRegular == null || _fontStrike == null) return;
+            if (_fontRegular == null || _fontStrike == null || _fontBold == null) return;
             if (e.RowIndex < 0 || e.RowIndex >= _rows.Count) return;
 
             var r = _rows[e.RowIndex];
-            var style = _grid.Rows[e.RowIndex].DefaultCellStyle;
-            style.ForeColor = r.Done ? Color.Gray : Color.Black;
-            style.Font = r.Done ? _fontStrike : _fontRegular;
+            var colName = _grid.Columns[e.ColumnIndex].Name;
+
+            e.CellStyle!.ForeColor = r.Done ? Color.Gray : Color.Black;
+
+            if (r.Done)
+            {
+                e.CellStyle.Font = _fontStrike;
+            }
+            else if (colName == "title")
+            {
+                e.CellStyle.Font = _fontBold;
+            }
+            else
+            {
+                e.CellStyle.Font = _fontRegular;
+            }
         };
 
         _grid.RowPrePaint += (_, e) =>
@@ -143,6 +183,7 @@ public sealed class MainForm : Form
         FormClosed += (_, _) =>
         {
             _fontRegular?.Dispose();
+            _fontBold?.Dispose();
             _fontStrike?.Dispose();
         };
 
@@ -163,7 +204,7 @@ public sealed class MainForm : Form
         {
             Name = "title",
             HeaderText = "Titolo",
-            Width = 260,
+            Width = 300,
             DataPropertyName = nameof(IssueRow.Title),
             ReadOnly = true
         };
@@ -179,6 +220,72 @@ public sealed class MainForm : Form
 
         _grid.Columns.AddRange(colDone, colTitle, colDesc);
     }
+
+    private void SetupLeftPanel()
+    {
+        var leftPanel = new Panel { Dock = DockStyle.Fill };
+
+        // Area filtri stilizzata
+        var filterGroup = new GroupBox
+        {
+            Text = "🔎 Filtri",
+            Dock = DockStyle.Top,
+            Height = 54,
+            Padding = new Padding(4, 2, 4, 4),
+            ForeColor = Color.FromArgb(70, 130, 180)
+        };
+
+        var filterTable = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0)
+        };
+        filterTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        filterTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110F));
+        filterTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        _titleFilter.Dock = DockStyle.Fill;
+        _titleFilter.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
+
+        _showOnlyOpen.Dock = DockStyle.Fill;
+        _showOnlyOpen.Width = 100;
+        _showOnlyOpen.Margin = new Padding(4, 0, 0, 0);
+
+        _showOnlyOpen.CheckedChanged += (_, _) =>
+        {
+            _onlyOpen = _showOnlyOpen.Checked;
+            _showOnlyOpen.BackColor = _onlyOpen ? Color.FromArgb(200, 230, 200) : SystemColors.Control;
+            ReloadFromDisk();
+        };
+
+        _titleFilter.SelectedIndexChanged += (_, _) => ApplyFilter();
+
+        filterTable.Controls.Add(_titleFilter, 0, 0);
+        filterTable.Controls.Add(_showOnlyOpen, 1, 0);
+        filterGroup.Controls.Add(filterTable);
+
+        leftPanel.Controls.Add(_grid);
+        leftPanel.Controls.Add(filterGroup);
+
+        _split.Panel1.Controls.Add(leftPanel);
+    }
+
+    private void SetupStatusStrip()
+    {
+        _statusStrip.Items.Add(_statusSpacer);
+        _statusStrip.Items.Add(_statusTotal);
+        _statusStrip.Items.Add(_statusOpen);
+        _statusStrip.Items.Add(_statusClosed);
+    }
+
+    private static Label CreateSeparator() => new()
+    {
+        Dock = DockStyle.Top,
+        Height = 12,
+        BorderStyle = BorderStyle.Fixed3D
+    };
 
     private void SetupRightPanel()
     {
@@ -200,14 +307,34 @@ public sealed class MainForm : Form
         notesPanel.Controls.Add(_notes);
         notesPanel.Controls.Add(notesLabel);
 
+        // Pannello con pulsanti Aggiungi e Salva affiancati
+        var addUpdatePanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 40,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0)
+        };
+        addUpdatePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        addUpdatePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        addUpdatePanel.Controls.Add(_add, 0, 0);
+        addUpdatePanel.Controls.Add(_update, 1, 0);
+
         // Aggiungo in ordine inverso perché Dock = Top li impila dal basso verso l'alto
+        // Sezione: Azioni su issue esistenti (in basso)
         right.Controls.Add(_delete);
         right.Controls.Add(_toggleDone);
-        right.Controls.Add(_update);
-        right.Controls.Add(_add);
+        right.Controls.Add(CreateSeparator());
+        // Sezione: Aggiungi/Salva affiancati
+        right.Controls.Add(addUpdatePanel);
+        right.Controls.Add(CreateSeparator());
+        // Sezione: Campi editor
         right.Controls.Add(notesPanel);
         right.Controls.Add(descPanel);
         right.Controls.Add(titlePanel);
+        right.Controls.Add(CreateSeparator());
+        // Sezione: Pulsante nuovo e path DB (in alto)
         right.Controls.Add(_new);
         right.Controls.Add(_pathLabel);
 
@@ -255,12 +382,26 @@ public sealed class MainForm : Form
             .ThenByDescending(x => x.CreatedUtc)
             .ToList();
 
-        _rows = new BindingList<IssueRow>(all);
+        UpdateFilterComboBox(all);
+
+        var filtered = all.AsEnumerable();
+
+        // Applica filtro per titolo
+        if (_currentFilter != null)
+            filtered = filtered.Where(x => string.Equals(x.Title, _currentFilter, StringComparison.OrdinalIgnoreCase));
+
+        // Applica filtro solo aperte
+        if (_onlyOpen)
+            filtered = filtered.Where(x => !x.Done);
+
+        var filteredList = filtered.ToList();
+
+        _rows = new BindingList<IssueRow>(filteredList);
         _grid.DataSource = _rows;
 
         if (!string.IsNullOrWhiteSpace(keepSelectionId))
         {
-            var idx = all.FindIndex(x => x.Id == keepSelectionId);
+            var idx = filteredList.FindIndex(x => x.Id == keepSelectionId);
             if (idx >= 0 && idx < _grid.Rows.Count)
             {
                 _grid.ClearSelection();
@@ -271,6 +412,82 @@ public sealed class MainForm : Form
 
         _reloading = false;
         LoadSelectedToEditor();
+    }
+
+    private void UpdateFilterComboBox(List<IssueRow> allIssues)
+    {
+        var previousFilter = _currentFilter;
+
+        var totalCount = allIssues.Count;
+        var openCount = allIssues.Count(x => !x.Done);
+        var closedCount = totalCount - openCount;
+
+        // Raggruppa per titolo con conteggi
+        var titleStats = allIssues
+            .GroupBy(r => r.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new
+            {
+                Title = g.Key,
+                Total = g.Count(),
+                Open = g.Count(x => !x.Done)
+            })
+            .OrderBy(x => x.Title)
+            .ToList();
+
+        _titleFilter.Items.Clear();
+        _titleFilter.Items.Add($"🔍 Tutti ({openCount}/{totalCount})");
+
+        foreach (var stat in titleStats)
+        {
+            var label = stat.Open > 0
+                ? $"{stat.Title} ({stat.Open}/{stat.Total})"
+                : $"{stat.Title} (✓ {stat.Total})";
+            _titleFilter.Items.Add(label);
+        }
+
+        // Ripristina selezione precedente
+        if (previousFilter != null)
+        {
+            var matchIndex = titleStats.FindIndex(x =>
+                string.Equals(x.Title, previousFilter, StringComparison.OrdinalIgnoreCase));
+            if (matchIndex >= 0)
+                _titleFilter.SelectedIndex = matchIndex + 1;
+            else
+                _titleFilter.SelectedIndex = 0;
+        }
+        else
+        {
+            _titleFilter.SelectedIndex = 0;
+        }
+
+        // Aggiorna StatusStrip
+        UpdateStatusStrip(totalCount, openCount, closedCount);
+    }
+
+    private void UpdateStatusStrip(int total, int open, int closed)
+    {
+        _statusTotal.Text = $"📋 Totale: {total}";
+        _statusOpen.Text = $"🔓 Aperte: {open}";
+        _statusClosed.Text = $"✅ Chiuse: {closed}";
+    }
+
+    private void ApplyFilter()
+    {
+        if (_reloading) return;
+
+        if (_titleFilter.SelectedIndex <= 0)
+        {
+            _currentFilter = null;
+        }
+        else
+        {
+            // Estrae il titolo rimuovendo il suffisso con contatori " (X/Y)" o " (✓ Y)"
+            var selected = _titleFilter.SelectedItem?.ToString() ?? "";
+            var lastParen = selected.LastIndexOf(" (", StringComparison.Ordinal);
+            _currentFilter = lastParen > 0 ? selected[..lastParen] : selected;
+        }
+
+        ReloadFromDisk();
     }
 
     private void AddIssue()

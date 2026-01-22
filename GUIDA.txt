@@ -1,0 +1,49 @@
+================================================================================
+                          GUIDA AVVIO ISSUEPAD
+================================================================================
+
+REQUISITI
+---------
+- .NET 9 SDK installato (scaricabile da https://dotnet.microsoft.com/download)
+
+
+--------------------------------------------------------------------------------
+1. AVVIARE IL PROGETTO (modalità sviluppo)
+--------------------------------------------------------------------------------
+
+Apri un terminale nella cartella del progetto e digita:
+
+    dotnet run
+
+L'applicazione si avvierà direttamente.
+
+
+--------------------------------------------------------------------------------
+2. CREARE IL FILE EXE
+--------------------------------------------------------------------------------
+
+Opzione A - EXE singolo (consigliata, non richiede .NET installato sul PC)
+--------------------------------------------------------------------------
+
+    dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
+
+Il file IssuePad.exe verrà creato nella cartella "publish".
+Questo exe è autonomo e può essere copiato su qualsiasi PC Windows 64-bit.
+
+
+Opzione B - EXE leggero (richiede .NET 9 installato sul PC di destinazione)
+---------------------------------------------------------------------------
+
+    dotnet publish -c Release -o publish-light
+
+Il file exe sarà più piccolo ma richiede .NET 9 runtime sul PC dove viene eseguito.
+
+
+--------------------------------------------------------------------------------
+NOTA
+--------------------------------------------------------------------------------
+I dati dell'applicazione (issues) vengono salvati in:
+    %LOCALAPPDATA%\IssuePad\issues.jsonl
+
+I log degli errori vengono salvati in:
+    %LOCALAPPDATA%\IssuePad\crash.log

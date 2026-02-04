@@ -44,6 +44,7 @@ public sealed class IssueRepository
                 dict[e.Id] = new IssueRow(
                     Id: e.Id,
                     Done: false,
+                    Application: e.Application ?? "",
                     Title: e.Title ?? "(senza titolo)",
                     Description: e.Description ?? "",
                     Notes: e.Notes ?? "",
@@ -66,6 +67,7 @@ public sealed class IssueRepository
             {
                 dict[e.Id] = cur3 with
                 {
+                    Application = e.Application ?? cur3.Application,
                     Title = e.Title ?? cur3.Title,
                     Description = e.Description ?? cur3.Description,
                     Notes = e.Notes ?? cur3.Notes

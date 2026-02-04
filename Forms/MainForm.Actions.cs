@@ -6,14 +6,16 @@ public sealed partial class MainForm
 {
     private void ClearEditor()
     {
+        _application.Text = "";
         _title.Text = "";
         _desc.Text = "";
         _notes.Text = "";
-        _title.Focus();
+        _application.Focus();
     }
 
     private void AddIssue()
     {
+        var app = (_application.Text ?? "").Trim();
         var title = (_title.Text ?? "").Trim();
         var desc = (_desc.Text ?? "").Trim();
         var notes = (_notes.Text ?? "").Trim();
@@ -31,6 +33,7 @@ public sealed partial class MainForm
         {
             Type = "add",
             Id = id,
+            Application = app,
             Title = title,
             Description = desc,
             Notes = notes,
@@ -50,6 +53,7 @@ public sealed partial class MainForm
             return;
         }
 
+        var app = (_application.Text ?? "").Trim();
         var title = (_title.Text ?? "").Trim();
         var desc = (_desc.Text ?? "").Trim();
         var notes = (_notes.Text ?? "").Trim();
@@ -64,6 +68,7 @@ public sealed partial class MainForm
         {
             Type = "update",
             Id = row.Id,
+            Application = app,
             Title = title,
             Description = desc,
             Notes = notes,
@@ -136,6 +141,7 @@ public sealed partial class MainForm
         var row = GetSelectedRow();
         if (row == null) return;
 
+        _application.Text = row.Application;
         _title.Text = row.Title;
         _desc.Text = row.Description;
         _notes.Text = row.Notes;

@@ -14,11 +14,20 @@ public sealed partial class MainForm
             DataPropertyName = nameof(IssueRow.Done)
         };
 
+        var colApp = new DataGridViewTextBoxColumn
+        {
+            Name = "application",
+            HeaderText = "Applicazione",
+            Width = 120,
+            DataPropertyName = nameof(IssueRow.Application),
+            ReadOnly = true
+        };
+
         var colTitle = new DataGridViewTextBoxColumn
         {
             Name = "title",
             HeaderText = "Titolo",
-            Width = 300,
+            Width = 200,
             DataPropertyName = nameof(IssueRow.Title),
             ReadOnly = true
         };
@@ -32,7 +41,7 @@ public sealed partial class MainForm
             ReadOnly = true
         };
 
-        _grid.Columns.AddRange(colDone, colTitle, colDesc);
+        _grid.Columns.AddRange(colDone, colApp, colTitle, colDesc);
     }
 
     private void SetupLeftPanel()
@@ -44,7 +53,7 @@ public sealed partial class MainForm
         {
             Text = "🔎 Filtri",
             Dock = DockStyle.Top,
-            Height = 54,
+            Height = 80,
             Padding = new Padding(4, 2, 4, 4),
             ForeColor = Color.FromArgb(70, 130, 180)
         };
@@ -52,16 +61,21 @@ public sealed partial class MainForm
         var filterTable = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
+            ColumnCount = 3,
+            RowCount = 2,
             Margin = new Padding(0)
         };
-        filterTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        filterTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+        filterTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
         filterTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110F));
-        filterTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        filterTable.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+        filterTable.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
 
+        var appLabel = new Label { Text = "App:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+        var titleLabel = new Label { Text = "Titolo:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+
+        _appFilter.Dock = DockStyle.Fill;
         _titleFilter.Dock = DockStyle.Fill;
-        _titleFilter.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
 
         _showOnlyOpen.Dock = DockStyle.Fill;
         _showOnlyOpen.Width = 100;
@@ -74,10 +88,15 @@ public sealed partial class MainForm
             ReloadFromDisk();
         };
 
-        _titleFilter.SelectedIndexChanged += (_, _) => ApplyFilter();
+        _appFilter.SelectedIndexChanged += (_, _) => ApplyAppFilter();
+        _titleFilter.SelectedIndexChanged += (_, _) => ApplyTitleFilter();
 
-        filterTable.Controls.Add(_titleFilter, 0, 0);
-        filterTable.Controls.Add(_showOnlyOpen, 1, 0);
+        filterTable.Controls.Add(appLabel, 0, 0);
+        filterTable.Controls.Add(_appFilter, 1, 0);
+        filterTable.Controls.Add(_showOnlyOpen, 2, 0);
+        filterTable.SetRowSpan(_showOnlyOpen, 2);
+        filterTable.Controls.Add(titleLabel, 0, 1);
+        filterTable.Controls.Add(_titleFilter, 1, 1);
         filterGroup.Controls.Add(filterTable);
 
         leftPanel.Controls.Add(_grid);
@@ -105,19 +124,24 @@ public sealed partial class MainForm
     {
         var right = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(8) };
 
+        var appLabel = new Label { Text = "Applicazione", Dock = DockStyle.Top, AutoSize = true };
         var titleLabel = new Label { Text = "Titolo", Dock = DockStyle.Top, AutoSize = true };
         var descLabel = new Label { Text = "Descrizione", Dock = DockStyle.Top, AutoSize = true };
         var notesLabel = new Label { Text = "Note aggiuntive", Dock = DockStyle.Top, AutoSize = true };
+
+        var appPanel = new Panel { Dock = DockStyle.Top, Height = 42 };
+        appPanel.Controls.Add(_application);
+        appPanel.Controls.Add(appLabel);
 
         var titlePanel = new Panel { Dock = DockStyle.Top, Height = 42 };
         titlePanel.Controls.Add(_title);
         titlePanel.Controls.Add(titleLabel);
 
-        var descPanel = new Panel { Dock = DockStyle.Top, Height = 160 };
+        var descPanel = new Panel { Dock = DockStyle.Top, Height = 140 };
         descPanel.Controls.Add(_desc);
         descPanel.Controls.Add(descLabel);
 
-        var notesPanel = new Panel { Dock = DockStyle.Top, Height = 160 };
+        var notesPanel = new Panel { Dock = DockStyle.Top, Height = 140 };
         notesPanel.Controls.Add(_notes);
         notesPanel.Controls.Add(notesLabel);
 
@@ -147,6 +171,7 @@ public sealed partial class MainForm
         right.Controls.Add(notesPanel);
         right.Controls.Add(descPanel);
         right.Controls.Add(titlePanel);
+        right.Controls.Add(appPanel);
         right.Controls.Add(CreateSeparator());
         // Sezione: Pulsante nuovo e path DB (in alto)
         right.Controls.Add(_new);

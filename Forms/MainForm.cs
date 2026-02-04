@@ -28,6 +28,7 @@ public sealed partial class MainForm : Form
     private BindingList<IssueRow> _rows = new();
     private bool _reloading;
 
+    private readonly TextBox _application = new() { Dock = DockStyle.Top };
     private readonly TextBox _title = new() { Dock = DockStyle.Top };
     private readonly TextBox _desc = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
     private readonly TextBox _notes = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
@@ -40,6 +41,11 @@ public sealed partial class MainForm : Form
 
     private readonly LinkLabel _pathLabel = new() { Dock = DockStyle.Top, Height = 20, AutoEllipsis = true };
 
+    private readonly ComboBox _appFilter = new()
+    {
+        Dock = DockStyle.Fill,
+        DropDownStyle = ComboBoxStyle.DropDownList
+    };
     private readonly ComboBox _titleFilter = new()
     {
         Dock = DockStyle.Fill,
@@ -54,7 +60,8 @@ public sealed partial class MainForm : Form
         TextAlign = ContentAlignment.MiddleCenter,
         FlatStyle = FlatStyle.Flat
     };
-    private string? _currentFilter = null;
+    private string? _currentAppFilter = null;
+    private string? _currentTitleFilter = null;
     private bool _onlyOpen = false;
 
     private readonly StatusStrip _statusStrip = new();
@@ -169,14 +176,18 @@ public sealed partial class MainForm : Form
         {
             if (e.RowIndex <= 0 || e.RowIndex >= _rows.Count) return;
 
-            var currentTitle = _rows[e.RowIndex].Title;
-            var previousTitle = _rows[e.RowIndex - 1].Title;
+            var current = _rows[e.RowIndex];
+            var previous = _rows[e.RowIndex - 1];
 
-            if (!string.Equals(currentTitle, previousTitle, StringComparison.OrdinalIgnoreCase))
+            var appChanged = !string.Equals(current.Application, previous.Application, StringComparison.OrdinalIgnoreCase);
+            var titleChanged = !string.Equals(current.Title, previous.Title, StringComparison.OrdinalIgnoreCase);
+
+            if (appChanged || titleChanged)
             {
                 var bounds = e.RowBounds;
-                using var brush = new SolidBrush(Color.FromArgb(70, 130, 180));
-                e.Graphics!.FillRectangle(brush, bounds.Left, bounds.Top - 2, bounds.Width, 4);
+                var color = appChanged ? Color.FromArgb(180, 70, 70) : Color.FromArgb(70, 130, 180);
+                using var brush = new SolidBrush(color);
+                e.Graphics!.FillRectangle(brush, bounds.Left, bounds.Top - 2, bounds.Width, appChanged ? 6 : 4);
             }
         };
 

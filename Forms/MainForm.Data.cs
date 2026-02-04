@@ -10,17 +10,22 @@ public sealed partial class MainForm
         _reloading = true;
 
         var all = _repository.LoadAllIssues()
-            .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x.Application, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
             .ThenByDescending(x => x.CreatedUtc)
             .ToList();
 
-        UpdateFilterComboBox(all);
+        UpdateFilterComboBoxes(all);
 
         var filtered = all.AsEnumerable();
 
+        // Applica filtro per applicazione
+        if (_currentAppFilter != null)
+            filtered = filtered.Where(x => string.Equals(x.Application, _currentAppFilter, StringComparison.OrdinalIgnoreCase));
+
         // Applica filtro per titolo
-        if (_currentFilter != null)
-            filtered = filtered.Where(x => string.Equals(x.Title, _currentFilter, StringComparison.OrdinalIgnoreCase));
+        if (_currentTitleFilter != null)
+            filtered = filtered.Where(x => string.Equals(x.Title, _currentTitleFilter, StringComparison.OrdinalIgnoreCase));
 
         // Applica filtro solo aperte
         if (_onlyOpen)
@@ -46,16 +51,34 @@ public sealed partial class MainForm
         LoadSelectedToEditor();
     }
 
-    private void UpdateFilterComboBox(List<IssueRow> allIssues)
+    private void UpdateFilterComboBoxes(List<IssueRow> allIssues)
     {
-        var previousFilter = _currentFilter;
+        var previousAppFilter = _currentAppFilter;
+        var previousTitleFilter = _currentTitleFilter;
 
         var totalCount = allIssues.Count;
         var openCount = allIssues.Count(x => !x.Done);
         var closedCount = totalCount - openCount;
 
-        // Raggruppa per titolo con conteggi
-        var titleStats = allIssues
+        // Filtra per app corrente prima di calcolare i titoli disponibili
+        var issuesForTitleFilter = _currentAppFilter != null
+            ? allIssues.Where(x => string.Equals(x.Application, _currentAppFilter, StringComparison.OrdinalIgnoreCase)).ToList()
+            : allIssues;
+
+        // Raggruppa per applicazione con conteggi
+        var appStats = allIssues
+            .GroupBy(r => r.Application, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new
+            {
+                App = g.Key,
+                Total = g.Count(),
+                Open = g.Count(x => !x.Done)
+            })
+            .OrderBy(x => x.App)
+            .ToList();
+
+        // Raggruppa per titolo con conteggi (filtrato per app se selezionata)
+        var titleStats = issuesForTitleFilter
             .GroupBy(r => r.Title, StringComparer.OrdinalIgnoreCase)
             .Select(g => new
             {
@@ -66,8 +89,40 @@ public sealed partial class MainForm
             .OrderBy(x => x.Title)
             .ToList();
 
+        // Aggiorna ComboBox Applicazione
+        _appFilter.Items.Clear();
+        var appOpenCount = allIssues.Count(x => !x.Done);
+        _appFilter.Items.Add($"🔍 Tutte ({appOpenCount}/{totalCount})");
+
+        foreach (var stat in appStats)
+        {
+            var appName = string.IsNullOrWhiteSpace(stat.App) ? "(nessuna)" : stat.App;
+            var label = stat.Open > 0
+                ? $"{appName} ({stat.Open}/{stat.Total})"
+                : $"{appName} (✓ {stat.Total})";
+            _appFilter.Items.Add(label);
+        }
+
+        // Ripristina selezione app precedente
+        if (previousAppFilter != null)
+        {
+            var matchIndex = appStats.FindIndex(x =>
+                string.Equals(x.App, previousAppFilter, StringComparison.OrdinalIgnoreCase));
+            if (matchIndex >= 0)
+                _appFilter.SelectedIndex = matchIndex + 1;
+            else
+                _appFilter.SelectedIndex = 0;
+        }
+        else
+        {
+            _appFilter.SelectedIndex = 0;
+        }
+
+        // Aggiorna ComboBox Titolo
         _titleFilter.Items.Clear();
-        _titleFilter.Items.Add($"🔍 Tutti ({openCount}/{totalCount})");
+        var titleOpenCount = issuesForTitleFilter.Count(x => !x.Done);
+        var titleTotalCount = issuesForTitleFilter.Count;
+        _titleFilter.Items.Add($"🔍 Tutti ({titleOpenCount}/{titleTotalCount})");
 
         foreach (var stat in titleStats)
         {
@@ -77,11 +132,11 @@ public sealed partial class MainForm
             _titleFilter.Items.Add(label);
         }
 
-        // Ripristina selezione precedente
-        if (previousFilter != null)
+        // Ripristina selezione titolo precedente
+        if (previousTitleFilter != null)
         {
             var matchIndex = titleStats.FindIndex(x =>
-                string.Equals(x.Title, previousFilter, StringComparison.OrdinalIgnoreCase));
+                string.Equals(x.Title, previousTitleFilter, StringComparison.OrdinalIgnoreCase));
             if (matchIndex >= 0)
                 _titleFilter.SelectedIndex = matchIndex + 1;
             else
@@ -103,20 +158,40 @@ public sealed partial class MainForm
         _statusClosed.Text = $"✅ Chiuse: {closed}";
     }
 
-    private void ApplyFilter()
+    private void ApplyAppFilter()
+    {
+        if (_reloading) return;
+
+        if (_appFilter.SelectedIndex <= 0)
+        {
+            _currentAppFilter = null;
+        }
+        else
+        {
+            var selected = _appFilter.SelectedItem?.ToString() ?? "";
+            var lastParen = selected.LastIndexOf(" (", StringComparison.Ordinal);
+            var appName = lastParen > 0 ? selected[..lastParen] : selected;
+            _currentAppFilter = appName == "(nessuna)" ? "" : appName;
+        }
+
+        // Reset filtro titolo quando cambia app
+        _currentTitleFilter = null;
+        ReloadFromDisk();
+    }
+
+    private void ApplyTitleFilter()
     {
         if (_reloading) return;
 
         if (_titleFilter.SelectedIndex <= 0)
         {
-            _currentFilter = null;
+            _currentTitleFilter = null;
         }
         else
         {
-            // Estrae il titolo rimuovendo il suffisso con contatori " (X/Y)" o " (✓ Y)"
             var selected = _titleFilter.SelectedItem?.ToString() ?? "";
             var lastParen = selected.LastIndexOf(" (", StringComparison.Ordinal);
-            _currentFilter = lastParen > 0 ? selected[..lastParen] : selected;
+            _currentTitleFilter = lastParen > 0 ? selected[..lastParen] : selected;
         }
 
         ReloadFromDisk();
